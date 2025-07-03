@@ -1,0 +1,353 @@
+﻿@model WebAppJobs4UK.Models.EmployeeListViewModel
+
+@{
+    ViewData["Title"] = "Employee Form";
+    Layout = null;
+    int i = 1;
+    int startIndex = (Model.CurrentPage - 1) * Model.PageSize + 1; // Calculate start index for # column
+    Func<int, string> getDepartmentName = deptValue =>
+           {
+       return deptValue switch
+       {
+           1 => "IT",
+           2 => "HR",
+           3 => "Finance",
+           4 => "Marketing",
+           _ => "Unknown"
+       };
+       };
+}
+
+
+<!-- Bootstrap CSS -->
+<link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet">
+
+<!-- Bootstrap Datepicker CSS -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/css/bootstrap-datepicker.min.css" rel="stylesheet">
+
+<!-- jQuery UI -->
+<link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/themes/base/jquery-ui.css">
+
+<!-- Bootstrap JS -->
+<!-- jQuery -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<!-- Bootstrap JavaScript -->
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+
+<!-- Bootstrap Datepicker JavaScript -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/js/bootstrap-datepicker.min.js"></script>
+
+<!-- DataTables CSS -->
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.13.5/css/jquery.dataTables.min.css" />
+
+<!-- DataTables JS -->
+<script src="https://cdn.datatables.net/1.13.5/js/jquery.dataTables.min.js"></script>
+<!-- jQuery Validation -->
+<script src="https://cdn.jsdelivr.net/npm/jquery-validation@1.19.5/dist/jquery.validate.min.js"></script>
+
+<!-- jQuery Unobtrusive Validation (for ASP.NET MVC) -->
+<script src="https://cdn.jsdelivr.net/npm/jquery-validation-unobtrusive@4.0.0/dist/jquery.validate.unobtrusive.min.js"></script>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success" style="text-align: center;font-size: 18px;" id="TempMsg">
+        @TempData["Success"]
+    </div>
+}
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-success" style="text-align: center;font-size: 18px;" id="TempError">@TempData["Error"]</div>
+}
+
+@using (Html.BeginForm("InsertEmployee", "Employee", FormMethod.Post))
+{
+    <div class="col-sm-12" style="padding-top: 10px;">
+        <div class="col-sm-4" id="form" style="padding-top: 10px">
+            <div class="panel panel-primary">
+                <div class="panel-heading">
+                    Employee Details
+                </div>
+                <div class="panel-body">
+                    @Html.AntiForgeryToken()
+                    @Html.HiddenFor(m => m.EmployeeForm.Id)
+
+                    <div class="form-group">
+                        Name:
+                        @Html.TextBoxFor(m => m.EmployeeForm.Name, new { @class = "form-control" })
+                        @Html.ValidationMessageFor(m => m.EmployeeForm.Name, "", new { @class = "text-danger" })
+                    </div>
+
+                    <div class="form-group">
+                        @Html.LabelFor(m => m.EmployeeForm.Email)
+                        @Html.TextBoxFor(m => m.EmployeeForm.Email, new { @class = "form-control", type = "email" })
+                        @Html.ValidationMessageFor(m => m.EmployeeForm.Email, "", new { @class = "text-danger" })
+                    </div>
+
+                    <div class="form-group">
+                        @Html.LabelFor(m => m.EmployeeForm.Department)
+                        @Html.DropDownListFor(m => m.EmployeeForm.Department, (IEnumerable<SelectListItem>)ViewBag.Departments, "-- Select Department --", new { @class = "form-control" })
+                        @Html.ValidationMessageFor(m => m.EmployeeForm.Department, "", new { @class = "text-danger" })
+                    </div>
+
+                    <div class="form-group">
+                        @Html.LabelFor(m => m.EmployeeForm.HireDate)
+                        @Html.TextBoxFor(m => m.EmployeeForm.HireDate, "dd/mm/yyyy", new { @class = "form-control", @placeholder = "DD-MM-YYYY" })
+                        @Html.ValidationMessageFor(m => m.EmployeeForm.HireDate, "", new { @class = "text-danger", id = "HireDateValidationMessage" })
+
+                    </div>
+
+                    <div class="form-group">
+                        @Html.LabelFor(m => m.EmployeeForm.Salary)
+                        @Html.TextBoxFor(m => m.EmployeeForm.Salary, new { @class = "form-control" })
+                        @Html.ValidationMessageFor(m => m.EmployeeForm.Salary, "", new { @class = "text-danger" })
+                    </div>
+
+                    <div class="col-sm-12" style="text-align:right">
+                        <button type="submit" class="btn btn-success">Save</button>
+                        <a class="btn btn-primary" href="@Url.Action("Index", "Employee")">Cancel</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <div class="col-sm-8">
+            <div class="col-sm-12">
+                <div class="input-group">
+                    <input type="text" id="searchTermInput" class="form-control" placeholder="Search employees..." value="@Model.SearchTerm" />
+                   @*  <div class="input-group-append">
+                        <button type="button" id="searchButton" class="btn btn-primary">Search</button>
+                    </div> *@
+                </div>
+            </div>
+            <div class="col-sm-12" style="margin-top:10px;">
+            @* This div will be updated by AJAX calls *@
+            <div id="employeeTableContainer" >
+                @* Initially load the partial view with the model *@
+                @await Html.PartialAsync("PartialIndex", Model)
+            </div>
+        </div>
+        </div>
+</div>
+}
+
+   <script>
+    $("#searchTermInput").on('keyup', function (event) {
+
+        var searchTerm = $(this).val();
+        updateEmployeeList(1, @Model.PageSize, searchTerm, '@Model.SortBy', '@Model.SortOrder');
+    });
+
+    function updateEmployeeList(page, pageSize, searchTerm, sortBy, sortOrder) {
+        $.ajax({
+            url: '@Url.Action("Index", "Employee")', // Target the Index action
+            type: 'GET',
+            data: {
+                page: page,
+                pageSize: pageSize,
+                searchTerm: searchTerm,
+                sortBy: sortBy,
+                sortOrder: sortOrder
+            },
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest' // Identify as AJAX request to the server
+            },
+            success: function (data) {
+                $('#employeeTableContainer').html(data); // Replace the content of the container
+            },
+            error: function (xhr, status, error) {
+                console.error("AJAX Error:", status, error);
+                alert("Failed to load employees. Please try again.");
+            }
+        });
+    }
+
+    $(document).ready(function () {
+        $("#Id").val(0);
+        $("#searchButton").click(function () {
+            var searchTerm = $("#searchTermInput").val();
+            // When performing a new search, typically reset to the first page
+            updateEmployeeList(1, @Model.PageSize, searchTerm, '@Model.SortBy', '@Model.SortOrder');
+        });
+
+        // Optional: Trigger search on Enter key press in the search input
+        $("#searchTermInput").keypress(function (event) {
+            if (event.which == 13) { // 13 is the Enter key code
+                event.preventDefault(); // Prevent default form submission if input is part of a form
+                $("#searchButton").click(); // Trigger the search button click
+            }
+        });
+        // If the message is visible, hide it after 5 seconds
+        if ($("#TempMsg").is(":visible")) {
+            setTimeout(function () {
+                $("#TempMsg").fadeOut("slow");
+            }, 3000); // 5000 milliseconds = 5 seconds
+        }
+        if ($("#TempError").is(":visible")) {
+            setTimeout(function () {
+                $("#TempError").fadeOut("slow");
+            }, 3000); // 5000 milliseconds = 5 seconds
+        }
+        $.ajaxSetup({ cache: false });
+
+    });
+       
+
+    function Delete(id) {
+        var ans = confirm("Are you sure you want to delete this record?");
+        if (ans) {
+            $.ajax({
+                url: "/Employee/Delete/" + id,
+                type: "POST",
+                success: function (response) {
+                    debugger;
+                    if (response.success) {
+                        // Reload same page after delete
+                        window.location.href = '/Employee/Index';
+                    } else {
+                        alert("Delete failed: " + response.message);
+                    }
+                },
+                error: function () {
+                    alert("An error occurred during deletion.");
+                }
+            });
+        }
+    }
+
+
+    function BindrecordToEdit(id) {
+        
+        $.ajax({
+            type: "GET",
+            url: "/Employee/GetData/" + id,
+            data: "",
+            dataType: "json",
+            success: function (data) {
+                debugger;
+                $("#EmployeeForm_Id").val(data.id);
+                $("#EmployeeForm_Name").val(data.name);
+                $("#EmployeeForm_Email").val(data.email);
+                $("#EmployeeForm_Department").val(data.department); // Use the numeric ID, not name
+                $("#EmployeeForm_HireDate").val(ToJavaScriptDate(data.hireDate));
+                $("#EmployeeForm_Salary").val(data.salary);
+            },
+            error: function () {
+                console.error("Error loading data.");
+            }
+        });
+    }
+    function LoadEmployeeData() {
+        
+        $.ajax({
+            type: "GET",
+            url: "/Employee/GetAllData/",
+            data: "",
+            dataType: "json",
+            success: function (data) {
+                loadData(data); // You would define loadData function based on your needs
+            },
+            error: function () {
+                console.error("Error loading data.");
+            }
+        });
+    }
+
+    function getDepartmentName(deptValue) {
+        switch (deptValue) {
+            case 1: return "IT";
+            case 2: return "HR";
+            case 3: return "Finance";
+            case 4: return "Marketing";
+            default: return "Unknown";
+        }
+    }
+    function ToJavaScriptDate(value) {
+        debugger;
+        // Check if the value is a valid date string
+        if (value) {
+            var dt = new Date(value);
+            if (!isNaN(dt.getTime())) { // Check if date is valid
+                var d = (dt.getMonth() + 1).toString();
+                if (d.length == 1) {
+                    d = "0" + d;
+                }
+                var dd = (dt.getDate()).toString();
+                if (dd.length == 1) {
+                    dd = "0" + dd;
+                }
+                return dd + "/" + d + "/" + dt.getFullYear();
+            }
+        }
+        return value;
+    }
+    $('#Salary').on('input', function () {
+        let value = $(this).val();
+        // Remove any non-digit or non-decimal characters
+        value = value.replace(/[^0-9.]/g, '');
+        // Remove multiple decimal points
+        value = value.replace(/(\..*?)\..*/g, '$1');
+        // Prevent leading decimal point
+        if (value.startsWith('.')) value = '';
+        $(this).val(value);
+    });
+
+    $('#EmployeeForm_HireDate').datepicker({
+        format: 'dd/mm/yyyy',
+        autoclose: true,
+        todayHighlight: true,
+        changeMonth: true,
+        changeYear: true,
+        clickInput: true
+    });
+    $('#EmployeeForm_HireDate').on('change', function () {
+        var input = $(this).val();
+        var parts = input.split('/');
+        if (parts.length === 3) {
+            var selectedDate = new Date(parts[2], parts[1] - 1, parts[0]);
+            var today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            if (selectedDate > today) {
+                $('#HireDateValidationMessage').text("Hire Date cannot be in the future.");
+                $(this).val('');
+            } else {
+                $('#HireDateValidationMessage').text(""); // Clear message if valid
+            }
+        }
+    });
+
+    // Phone Number Validation
+    $("#Phone").on('keyup', function () {
+        var phone = $(this).val();
+        var phonePattern = /^\d{10}$/; // 10 digit phone number
+
+        if (phonePattern.test(phone)) {
+            $("#spnPhone").hide(); // Hide error if valid
+        } else {
+            $("#spnPhone").show().html("Phone number must be 10 digits");
+        }
+    });
+    $("#Phone").on('keypress', function (e) {
+        // Allow only digits (0-9)
+        var charCode = e.which ? e.which : e.keyCode;
+        if (charCode < 48 || charCode > 57) {
+            e.preventDefault();
+        }
+    });
+
+    $("#Email").on('keyup', function () {
+        debugger;
+        var email = $(this).val();
+        const emailRegex = /^[^\s@@]+@@[^\s@@]+\.[^\s@@]+$/;
+        // Use HTML5 validation check
+        if (email === "") {
+            $("#spnEmail").show().html("Please enter email address");
+        } else if (!emailRegex.test(email)) {
+            $("#spnEmail").show().html("Please enter a valid email address");
+        } else {
+            $("#spnEmail").hide();
+        }
+    });
+                </script>
